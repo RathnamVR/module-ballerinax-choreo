@@ -16,27 +16,27 @@
 
 package io.ballerina.observe.choreo;
 
+import io.ballerina.observe.choreo.logging.LogFactory;
+import io.ballerina.observe.choreo.logging.Logger;
 import io.ballerina.runtime.observability.BallerinaObserver;
 import io.ballerina.runtime.observability.ObserverContext;
-
-import java.io.PrintStream;
-import java.time.Duration;
-import java.util.HashSet;
-import java.util.Set;
-
-import io.ballerina.runtime.observability.metrics.MetricRegistry;
-import io.ballerina.runtime.observability.metrics.Tag;
 import io.ballerina.runtime.observability.metrics.DefaultMetricRegistry;
 import io.ballerina.runtime.observability.metrics.MetricId;
+import io.ballerina.runtime.observability.metrics.MetricRegistry;
+import io.ballerina.runtime.observability.metrics.Tag;
+
+import java.util.Set;
 
 /**
  * Observe the runtime and collect measurements.
  */
-public class StepcountObserver implements BallerinaObserver {
-    private static final String PROPERTY_START_TIME = "_observation_start_time_";
-    private static final PrintStream consoleError = System.err;
+
+public class StepCountObserver implements BallerinaObserver {
+    private static final String PROPERTY_START_TIME = "_choreo_observation_start_time_";
     private static final MetricRegistry metricRegistry = DefaultMetricRegistry.getInstance();
     
+    private static final Logger LOGGER = LogFactory.getLogger();
+
     @Override
     public void startServerObservation(ObserverContext observerContext) {
         startObservation(observerContext);
@@ -63,26 +63,20 @@ public class StepcountObserver implements BallerinaObserver {
     }
     
     private void startObservation(ObserverContext observerContext) {
-        observerContext.addProperty(PROPERTY_START_TIME, System.nanoTime());
+        observerContext.addProperty(PROPERTY_START_TIME, System.currentTimeMillis());
     }
     
     private void stopObservation(ObserverContext observerContext) {
-        Set<Tag> tags = new HashSet<>();
+        Set<Tag> tags = observerContext.getAllTags();
+
         try {
             Long startTime = (Long) observerContext.getProperty(PROPERTY_START_TIME);
-            long duration = System.nanoTime() - startTime;
-            long steps= Math.round(Math.ceil((double)(duration-500)/500));
-            //System.out.println(steps);
-            metricRegistry.counter(new MetricId("steps_total",
-                    "Total no of steps", tags)).increment(steps);
+            long duration = System.currentTimeMillis() - startTime;
+            long steps = Math.round(Math.ceil((double) (duration - 500) / 500));
+            metricRegistry.counter(new MetricId("choreo_steps_total", "Total no of steps", tags)).increment(steps);
         } catch (RuntimeException e) {
-            handleError("multiple metrics", tags, e);
+            LOGGER.error("error: error collecting metrics for multiple metrics with tags " 
+            + tags + ": " + e.getMessage());
         }
-    }
-    
-    private void handleError(String metricName, Set<Tag> tags, RuntimeException e) {
-        // Metric Provider may throw exceptions if there is a mismatch in tags.
-        consoleError.println("error: error collecting metrics for " + metricName + " with tags " + tags +
-                ": " + e.getMessage());
     }
 }
